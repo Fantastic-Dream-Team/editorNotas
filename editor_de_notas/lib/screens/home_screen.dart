@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
+import '../components_screen.dart'; // Asegúrate de que la ruta coincida con tu estructura de carpetas
 import '../models/note.dart';
-import '../widgets/note_list.dart';
-import '../widgets/note_editor.dart';
 import '../widgets/menu_anchor_actions.dart';
+import '../widgets/note_editor.dart';
+import '../widgets/note_list.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,7 +19,6 @@ class _HomeScreenState extends State<HomeScreen> {
   double _fontSize = 16;
   bool _isMobile = false;
 
-  // Controladores temporales para edición
   String _tempTitle = '';
   String _tempContent = '';
 
@@ -42,156 +43,58 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedNote != null) {
       _tempTitle = _selectedNote!.title;
       _tempContent = _selectedNote!.content;
+    } else {
+      _tempTitle = '';
+      _tempContent = '';
     }
   }
 
   void _createNewNote() {
-    final newNote = Note.create();
     setState(() {
+      final newNote = Note.create(title: 'Nota sin título', content: '');
       _notes.insert(0, newNote);
       _selectedNote = newNote;
-      _tempTitle = newNote.title;
-      _tempContent = newNote.content;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✅ Nueva nota creada'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _saveCurrentNote() {
-    if (_selectedNote == null) return;
-
-    setState(() {
-      final updatedNote = _selectedNote!.copyWith(
-        title: _tempTitle.isEmpty ? 'Sin título' : _tempTitle,
-        content: _tempContent,
-      );
-      final index = _notes.indexWhere((n) => n.id == _selectedNote!.id);
-      if (index != -1) _notes[index] = updatedNote;
-      _selectedNote = updatedNote;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('💾 Nota guardada'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _deleteNote(Note note) {
-    _showConfirmDialog('Eliminar nota', '¿Eliminar "${note.title}"?', () {
-      setState(() {
-        _notes.removeWhere((n) => n.id == note.id);
-        if (_selectedNote?.id == note.id) {
-          _selectedNote = _notes.isNotEmpty ? _notes.first : null;
-          if (_selectedNote != null) {
-            _tempTitle = _selectedNote!.title;
-            _tempContent = _selectedNote!.content;
-          }
-        }
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🗑️ Nota eliminada'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    });
-  }
-
-  void _deleteAllNotes() {
-    if (_notes.isEmpty) return;
-    _showConfirmDialog('Eliminar todo', '¿Eliminar TODAS las notas?', () {
-      setState(() {
-        _notes.clear();
-        _selectedNote = null;
-        _tempTitle = '';
-        _tempContent = '';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🗑️ Todas las notas eliminadas'),
-          duration: Duration(seconds: 1),
-        ),
-      );
+      _loadTempData();
     });
   }
 
   void _duplicateNote(Note note) {
-    final duplicated = note.duplicate();
     setState(() {
-      _notes.insert(0, duplicated);
+      final duplicated = note.duplicate();
+      final index = _notes.indexOf(note);
+      if (index != -1) {
+        _notes.insert(index + 1, duplicated);
+      } else {
+        _notes.add(duplicated);
+      }
       _selectedNote = duplicated;
-      _tempTitle = duplicated.title;
-      _tempContent = duplicated.content;
+      _loadTempData();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('📋 Nota duplicada'),
-        duration: Duration(seconds: 1),
-      ),
-    );
   }
 
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Acerca de'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('📝 Editor de Notas con Menús'),
-            SizedBox(height: 8),
-            Text('Menús demostrados:'),
-            Text('1️⃣ PopupMenuButton (⋮ en AppBar)'),
-            Text('2️⃣ DropdownMenu (tamaño de fuente)'),
-            Text('3️⃣ MenuAnchor (botón "Acciones")'),
-            Text('4️⃣ Menú contextual (clic derecho en nota)'),
-            Text('5️⃣ contextMenuBuilder (selecciona texto)'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+  void _deleteNote(Note note) {
+    setState(() {
+      _notes.remove(note);
+      if (_notes.isNotEmpty) {
+        _selectedNote = _notes.first;
+      } else {
+        _selectedNote = null;
+      }
+      _loadTempData();
+    });
   }
 
-  void _showConfirmDialog(
-    String title,
-    String content,
-    VoidCallback onConfirm,
-  ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              onConfirm();
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
+  void _saveCurrentNote() {
+    if (_selectedNote != null) {
+      setState(() {
+        _selectedNote!.title = _tempTitle;
+        _selectedNote!.content = _tempContent;
+        _selectedNote!.updatedAt = DateTime.now();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nota guardada correctamente')),
+      );
+    }
   }
 
   @override
@@ -200,38 +103,46 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mis Notas'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        title: const Text('Mis Notas 📝'),
+        backgroundColor: Colors.blue.shade100,
         actions: [
-          // MENÚ 1: PopupMenuButton
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               switch (value) {
                 case 'nueva':
                   _createNewNote();
                   break;
-                case 'borrar_todo':
-                  _deleteAllNotes();
-                  break;
-                case 'acerca':
-                  _showAboutDialog();
+                case 'faltantes':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MissingComponentsScreen(),
+                    ),
+                  );
                   break;
               }
             },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'nueva', child: Text('➕ Nueva nota')),
-              const PopupMenuDivider(),
+            itemBuilder: (BuildContext context) => [
               const PopupMenuItem(
-                value: 'borrar_todo',
-                child: Text(
-                  '🗑️ Eliminar todo',
-                  style: TextStyle(color: Colors.red),
+                value: 'nueva',
+                child: Row(
+                  children: [
+                    Icon(Icons.add, size: 20),
+                    SizedBox(width: 8),
+                    Text('Nueva Nota rápido'),
+                  ],
                 ),
               ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'acerca', child: Text('ℹ️ Acerca de')),
+              const PopupMenuItem(
+                value: 'faltantes',
+                child: Row(
+                  children: [
+                    Icon(Icons.science, size: 20, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('🧪 Ver componentes faltantes'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -240,7 +151,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // VISTA ESCRITORIO
   Widget _buildDesktopLayout() {
     return Row(
       children: [
@@ -250,8 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onSelectNote: (note) {
             setState(() {
               _selectedNote = note;
-              _tempTitle = note.title;
-              _tempContent = note.content;
+              _loadTempData();
             });
           },
           onDeleteNote: _deleteNote,
@@ -262,36 +171,23 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
+                padding: const EdgeInsets.all(8),
+                color: Colors.grey.shade100,
                 child: Row(
                   children: [
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      onPressed: _saveCurrentNote,
+                      tooltip: 'Guardar cambios',
+                    ),
+                    const SizedBox(width: 8),
                     MenuAnchorActions(
                       hasNote: _selectedNote != null,
-                      onNewNote: _createNewNote, // ✅
-                      onDuplicateNote: () {
-                        if (_selectedNote != null) {
-                          _duplicateNote(_selectedNote!);
-                        }
-                      },
-                      onDeleteNote: () {
-                        if (_selectedNote != null) _deleteNote(_selectedNote!);
-                        {}
-                      },
+                      onNewNote: _createNewNote,
+                      onDuplicateNote: () => _duplicateNote(_selectedNote!),
+                      onDeleteNote: () => _deleteNote(_selectedNote!),
                     ),
-                    const Spacer(),
-                    if (_selectedNote != null)
-                      Text(
-                        'Actualizado: ${_selectedNote!.updatedAt.day}/${_selectedNote!.updatedAt.month}',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -313,7 +209,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // VISTA MÓVIL
   Widget _buildMobileLayout() {
     if (_selectedNote == null) {
       return NoteList(
@@ -322,8 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onSelectNote: (note) {
           setState(() {
             _selectedNote = note;
-            _tempTitle = note.title;
-            _tempContent = note.content;
+            _loadTempData();
           });
         },
         onDeleteNote: _deleteNote,
@@ -335,10 +229,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-          ),
+          color: Colors.grey.shade200,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
               IconButton(
@@ -353,7 +245,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
-              // Botón GUARDAR en móvil
               IconButton(
                 icon: const Icon(Icons.save),
                 onPressed: _saveCurrentNote,
